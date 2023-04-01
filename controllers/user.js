@@ -2,24 +2,23 @@ const nodemailer = require('nodemailer')
 const User = require('../models/user')
 const EmailVerificationToken = require('../models/emailVerificationToken');
 const { isValidObjectId } = require('mongoose');
+const { generateOTP, generateMailTransporter } = require('../utils/mail');
+const { sendError } = require('../utils/helper');
 
 exports.create = async (req, res) => {
   const { name, email, password } = req.body
 
   const oldUser = await User.findOne({ email });
 
-  if (oldUser) return res.status(401).json({ error: "This email is already in use!" });
+  if (oldUser) 
+  return sendError({ res: "This email is already in use!" });
 
   const newUser = new User({ name, email, password })
   await newUser.save()
 
   // generate 6 digit otp
-  let OTP = "";
-  for (let i = 1; i <= 5; i++) {
-    const randomVal = Math.round(Math.random() * 9);
-    OTP += randomVal;
-  }
-
+  let OTP = generateOTP();
+ 
   // store otp inside our db
   const newEmailVerificationToken = new EmailVerificationToken({ owner: newUser._id, token: OTP })
 
@@ -27,14 +26,7 @@ exports.create = async (req, res) => {
 
   // send that otp to our user
 
-  var transport = nodemailer.createTransport({
-    host: "sandbox.smtp.mailtrap.io",
-    port: 2525,
-    auth: {
-      user: "c6dc0e4cb3a0ab",
-      pass: "db979bf12232e5"
-    }
-  });
+  var transport = generateMailTransporter();
 
   transport.sendMail({
     from: 'verification@reviewapp.com',
@@ -52,18 +44,18 @@ exports.create = async (req, res) => {
 exports.verifyEmail = async (req, res) => {
   const { userId, OTP } = req.body
 
-  if (!isValidObjectId(userId)) return res.json({ error: "Invalid user!" })
+  if (!isValidObjectId(userId)) return res.json({ error: "Invalid User!"
+})
 
   const user = await User.findById(userId)
-  if (!user) return res.json({ error: "user not found!" })
+  if (!user) return sendError( res, "user not found!" ,404);
 
-  if (user.isVerified) return res.json({ error: "user is already verified!" })
+  if (user.isVerified) return sendError(error, "user is already verified!" );
 
   const token = await EmailVerificationToken.findOne({ owner: userId })
-  if (!token) return res.json({ error: 'token not found!' })
-
+  if (!token) return sendError(error, "Token not Found!" );
   const isMatched = await token.compareToken(OTP)
-  if (!isMatched) return res.json({ error: 'Please submit a valid OTP!' })
+  if (!isMatched) return sendError(error, "Please Submit a valid OTP!" );
 
   user.isVerified = true;
   await user.save();
@@ -80,10 +72,10 @@ exports.verifyEmail = async (req, res) => {
   });
 
   transport.sendMail({
-    from: 'verification@reviewapp.com',
+    from: 'devraj.nepal@gmail.com',
     to: user.email,
     subject: 'Welcome Email',
-    html: '<h1>Welcome to our app and thanks for choosing us.</h1>'
+    html: '<h1>Welcome to my cna  app and thanks for choosing us.</h1>'
   })
 
   res.json({ message: "Your email is verified." })
